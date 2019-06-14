@@ -65,26 +65,23 @@ module Rack
       env[HTTP_ORIGIN] ||= env[HTTP_X_ORIGIN] if env[HTTP_X_ORIGIN]
 
       add_headers = nil
-      if env[HTTP_ORIGIN]
+
+      debug(env) do
+        [ 'Incoming Headers:',
+          "  Origin: #{env[HTTP_ORIGIN]}",
+          "  Access-Control-Request-Method: #{env[HTTP_ACCESS_CONTROL_REQUEST_METHOD]}",
+          "  Access-Control-Request-Headers: #{env[HTTP_ACCESS_CONTROL_REQUEST_HEADERS]}"
+        ].join("\n")
+      end
+      if env[REQUEST_METHOD] == OPTIONS and env[HTTP_ACCESS_CONTROL_REQUEST_METHOD]
+        headers = process_preflight(env)
         debug(env) do
-          [ 'Incoming Headers:',
-            "  Origin: #{env[HTTP_ORIGIN]}",
-            "  Access-Control-Request-Method: #{env[HTTP_ACCESS_CONTROL_REQUEST_METHOD]}",
-            "  Access-Control-Request-Headers: #{env[HTTP_ACCESS_CONTROL_REQUEST_HEADERS]}"
-            ].join("\n")
+          "Preflight Headers:\n" +
+            headers.collect{|kv| "  #{kv.join(': ')}"}.join("\n")
         end
-        if env[REQUEST_METHOD] == OPTIONS and env[HTTP_ACCESS_CONTROL_REQUEST_METHOD]
-          headers = process_preflight(env)
-          debug(env) do
-            "Preflight Headers:\n" +
-                headers.collect{|kv| "  #{kv.join(': ')}"}.join("\n")
-          end
-          return [200, headers, []]
-        else
-          add_headers = process_cors(env)
-        end
+        return [200, headers, []]
       else
-        Result.miss(env, Result::MISS_NO_ORIGIN)
+        add_headers = process_cors(env)
       end
 
       # This call must be done BEFORE calling the app because for some reason
@@ -396,8 +393,7 @@ module Rack
           end
 
           def origin_for_response_header(origin)
-            return '*' if public_resource?
-            origin
+            origin.present? ? origin : '*'
           end
 
           def to_preflight_headers(env)
@@ -446,7 +442,7 @@ module Rack
               raise TypeError, path
             end
           end
-      end
+    end
 
   end
 end
